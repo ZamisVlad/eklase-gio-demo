@@ -1,94 +1,64 @@
-// Package storage is an interface for interacting with a database.
-package storage
+package screen
 
 import (
-	"fmt"
-	"log"
+	"eklase/state"
 
-	"github.com/jmoiron/sqlx"
+	"gioui.org/layout"
+	"gioui.org/text"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
 )
 
-var (
-	// Statement for creating tables. Currently creates `students` table only.
-	// In the future can be expanded with creation of other tables.
-	createTableStmt = `
-CREATE TABLE IF NOT EXISTS students (
-	id	INTEGER,
-	name	TEXT,
-	surname	TEXT,
-	PRIMARY KEY(id AUTOINCREMENT)
-);`
-	// Statement for adding a new entry into `students` table.
-	insertStudentsStmt = `INSERT INTO students (name, surname) VALUES(?, ?)`
-	// Statement for getting all entries from `students` table.
-	selectStudentsStmt = `SELECT name, surname FROM students`
-)
+// MainMenu defines a main menu screen layout.
+func MainMenu(th *material.Theme, state *state.State) Screen {
+	var (
+		add   widget.Clickable
+		add2  widget.Clickable
+		list  widget.Clickable
+		list2 widget.Clickable
+		list3 widget.Clickable
+		quit  widget.Clickable
+	)
+	return func(gtx layout.Context) (Screen, layout.Dimensions) {
+		matAddBut := material.Button(th, &add, "Add student")
+		matAddBut.Font = text.Font{Variant: "Smallcaps", Weight: text.Bold, Style: text.Italic}
+		matAdd2But := material.Button(th, &add2, "Add classes")
+		matAdd2But.Font = text.Font{Variant: "Smallcaps", Weight: text.Bold, Style: text.Italic}
+		matListBut := material.Button(th, &list, "List students")
+		matListBut.Font = text.Font{Variant: "Smallcaps", Weight: text.Bold, Style: text.Italic}
+		matList2But := material.Button(th, &list2, "List classes")
+		matList2But.Font = text.Font{Variant: "Smallcaps", Weight: text.Bold, Style: text.Italic}
+		matList3But := material.Button(th, &list2, "List classes")
+		matList3But.Font = text.Font{Variant: "Smallcaps", Weight: text.Bold, Style: text.Italic}
+		matQuitBut := material.Button(th, &quit, "Quit")
+		matQuitBut.Font = text.Font{Variant: "Smallcaps", Weight: text.Bold, Style: text.Italic}
 
-// StudentEntry represents a row for a single student in the DB.
-type StudentEntry struct {
-	Name    string `db:"name"`
-	Surname string `db:"surname"`
-}
-
-// Storage is an interface for interacting with persistent storage.
-type Storage struct {
-	db *sqlx.DB
-}
-
-// New initializes a new DB given its path, or opens an existing DB, and
-// initializes the handler. Returns an error if any of the steps fails.
-func New(path string) (*Storage, error) {
-	// Open a DB by the path.
-	db, err := sqlx.Open("sqlite", path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open SQLite DB: %v", db)
+		d := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(rowInset(matAddBut.Layout)),
+			layout.Rigid(rowInset(matAdd2But.Layout)),
+			layout.Rigid(rowInset(matListBut.Layout)),
+			layout.Rigid(rowInset(matList2But.Layout)),
+			layout.Rigid(rowInset(matList3But.Layout)),
+			layout.Rigid(rowInset(matQuitBut.Layout)),
+		)
+		if add.Clicked() {
+			return AddStudent(th, state), d
+		}
+		if add2.Clicked() {
+			return AddClass(th, state), d
+		}
+		if list.Clicked() {
+			return ListStudent(th, state), d
+		}
+		if list2.Clicked() {
+			return ListClass(th, state), d
+		}
+		if list3.Clicked() {
+			return ListGroups(th, state), d
+		}
+		if quit.Clicked() {
+			state.Quit()
+		}
+		return nil, d
 	}
-
-	// Create new tables. Note that the tables may exist already.
-	res, err := db.Exec(createTableStmt)
-	if err != nil {
-		return nil, fmt.Errorf("table creation failed. Query: %v\nError: %v", createTableStmt, err)
-	}
-	if cnt, err := res.RowsAffected(); err != nil {
-		log.Printf("%d rows affected.", cnt)
-	}
-
-	return &Storage{db: db}, nil
-}
-
-func Must(s *Storage, err error) *Storage {
-	if err != nil {
-		log.Fatalf("unable to create storage: %v", err)
-	}
-	return s
-}
-
-// Close closes the database after it is no longer required.
-func (s *Storage) Close() error {
-	return s.db.Close()
-}
-
-// Students returns a slice of existing students.
-func (s Storage) Students() ([]StudentEntry, error) {
-	var entries []StudentEntry
-	// Read rows from the `students` table and populate students field in the
-	// handler.
-	if err := s.db.Select(&entries, selectStudentsStmt); err != nil {
-		return nil, fmt.Errorf("querying 'students' table failed. Query: %v\nError: %v", selectStudentsStmt, err)
-	}
-	return entries, nil
-}
-
-// AddStudent appends a new student entry to the database.
-func (s *Storage) AddStudent(name, surname string) error {
-	// Attempt to add an entry to the database first.
-	// If it fails, the student field will not be modified.
-	res, err := s.db.Exec(insertStudentsStmt, name, surname)
-	if err != nil {
-		return fmt.Errorf("table creation failed. Query: %v\nError: %v", createTableStmt, err)
-	}
-	if cnt, err := res.RowsAffected(); err != nil {
-		log.Printf("%d rows affected.", cnt)
-	}
-	return nil
 }
